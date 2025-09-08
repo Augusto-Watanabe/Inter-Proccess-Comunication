@@ -2,3 +2,5 @@
 pipe_monitor
 *.o
 *.exe
+client
+server
