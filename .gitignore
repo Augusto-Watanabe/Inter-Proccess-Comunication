@@ -1,4 +1,4 @@
 # Ignorar executáveis
-pipe_example
+pipe_monitor
 *.o
 *.exe
