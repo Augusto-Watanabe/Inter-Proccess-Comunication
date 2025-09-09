@@ -4,3 +4,4 @@ pipe_monitor
 *.exe
 client
 server
+shared_memory
