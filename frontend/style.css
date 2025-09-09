@@ -1,0 +1,39 @@
+.build-section {
+    margin: 20px 0;
+    padding: 15px;
+    background: #e9ecef;
+    border-radius: 8px;
+    border-left: 4px solid #17a2b8;
+}
+
+.btn-build { background: #17a2b8; color: white; }
+.btn-check { background: #6c757d; color: white; }
+
+.build-status {
+    margin-top: 15px;
+    padding: 10px;
+    background: white;
+    border-radius: 5px;
+    border: 1px solid #dee2e6;
+}
+
+.build-info h4 {
+    margin: 10px 0 5px 0;
+    color: #495057;
+}
+
+.build-info ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.build-info li {
+    padding: 2px 0;
+    color: #28a745;
+}
+
+.build-info p {
+    color: #dc3545;
+    margin: 5px 0;
+}

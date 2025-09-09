@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Monitor de Processos C++</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🚀 Monitor de Processos C++</h1>
+            <p>Execute e monitore processos em tempo real</p>
+        </header>
+
+        <div class="controls">
+            <h2>▶️ Executar Processos</h2>
+            
+            <!-- SEÇÃO BUILD (que você está vendo) -->
+            <div class="build-section">
+                <h3>🔨 Build</h3>
+                <button onclick="buildAll()" class="btn btn-build">
+                    🛠️ Build All Projects
+                </button>
+                <button onclick="checkBuild()" class="btn btn-check">
+                    🔍 Verificar Build
+                </button>
+                <div id="buildStatus" class="build-status"></div>
+            </div>
+            <!-- FIM DA SEÇÃO BUILD -->
+
+            <div class="category">
+                <h3>🧪 Pipes</h3>
+                <div class="process-buttons">
+                    <button onclick="runProcess('pipes', 'pipe_monitor', [])" class="btn btn-pipes">
+                        🚀 Executar Pipe Monitor
+                    </button>
+                </div>
+            </div>
+
+            <div class="category">
+                <h3>🔌 Sockets</h3>
+                <div class="process-buttons">
+                    <button onclick="runProcess('sockets', 'server', [])" class="btn btn-sockets">
+                        🖥️ Executar Servidor
+                    </button>
+                    
+                    <button onclick="runProcess('sockets', 'client', ['Hello from Web!'])" class="btn btn-sockets">
+                        📨 Executar Cliente
+                    </button>
+                </div>
+            </div>
+
+            <div class="category">
+                <h3>🧠 Memória Compartilhada</h3>
+                <div class="process-buttons">
+                    <button onclick="runProcess('shared_memory', 'shared_memory', ['writer', 'Shared Mem Message'])" class="btn btn-memory">
+                        ✍️ Executar Writer
+                    </button>
+                    
+                    <button onclick="runProcess('shared_memory', 'shared_memory', ['reader'])" class="btn btn-memory">
+                        👁️ Executar Reader
+                    </button>
+                    
+                    <button onclick="runProcess('shared_memory', 'shared_memory', ['cleaner'])" class="btn btn-clean">
+                        🧹 Limpar Recursos
+                    </button>
+                </div>
+            </div>
+
+            <div class="custom-command">
+                <h3>⚡ Comando Personalizado</h3>
+                <div class="custom-inputs">
+                    <select id="customCategory" class="category-select">
+                        <option value="pipes">Pipes</option>
+                        <option value="sockets">Sockets</option>
+                        <option value="shared_memory">Memória Compartilhada</option>
+                    </select>
+                    
+                    <select id="customProgram" class="program-select">
+                        <option value="pipe_monitor">pipe_monitor</option>
+                        <option value="server">server</option>
+                        <option value="client">client</option>
+                        <option value="shared_memory">shared_memory</option>
+                    </select>
+                    
+                    <input type="text" id="customArgs" placeholder="Argumentos (ex: writer 'mensagem')" class="command-input">
+                    
+                    <button onclick="runCustomCommand()" class="btn btn-custom">
+                        🚀 Executar
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div class="process-list">
+            <h2>📋 Processos Ativos</h2>
+            <div id="processesContainer" class="processes-container"></div>
+        </div>
+
+        <div class="output-container">
+            <h2>📊 Output em Tempo Real</h2>
+            <div class="output-controls">
+                <div class="filters">
+                    <label>
+                        <input type="checkbox" id="showJson" checked onchange="filterOutput()">
+                        JSON
+                    </label>
+                    <label>
+                        <input type="checkbox" id="showStdout" checked onchange="filterOutput()">
+                        Stdout
+                    </label>
+                    <label>
+                        <input type="checkbox" id="showStderr" checked onchange="filterOutput()">
+                        Stderr
+                    </label>
+                </div>
+                <button onclick="clearOutput()" class="btn btn-clear">🗑️ Limpar</button>
+            </div>
+            <div id="output" class="output"></div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
