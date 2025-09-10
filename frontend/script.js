@@ -19,9 +19,8 @@ class IPCManager {
                 client: { running: false, connected: false }
             },
             memory: {
-                writer: { running: false },
-                reader: { running: false },
-                semaphore: 'unlocked',
+                manager: { running: false },
+                semaphore: 'Liberado',
                 lastWriter: null,
                 counter: 0
             }
@@ -212,17 +211,23 @@ class IPCManager {
                 this.updatePipeState(data, category);
                 break; // A categoria aqui é 'pipes'
             case 'socket':
-                this.updateSocketState(data);
-                break;
-            case 'memory':
-                this.updateMemoryState(data);
+            case 'connection':
+            case 'send':
+            case 'receive':
+            case 'config':
+                this.updateSocketState(data, category);
                 break;
             case 'shm':
             case 'semaphore':
-                this.updateMemoryState(data);
+            case 'operation':
+            case 'write':
+            case 'read':
+            case 'memory_state':
+                this.updateMemoryState(data, category);
                 break;
             default:
-                this.addLogEntry('stdout', JSON.stringify(data), category);
+                const logCategoryDefault = category === 'shared_memory' ? 'memory' : category.replace(/s$/, '');
+                this.addLogEntry('stdout', JSON.stringify(data), logCategoryDefault);
         }
     }
 
@@ -241,33 +246,51 @@ class IPCManager {
         this.addLogEntry(data.type, data.message, 'pipe', data.pid, data.data);
     }
 
-    updateSocketState(data) {
-        if (data.message.includes('conectado')) {
-            this.states.sockets.client.connected = true;
-            this.states.sockets.server.connections++;
-        } else if (data.message.includes('desconectado')) {
+    updateSocketState(data, category) {
+        if (category !== 'sockets') return;
+
+        // Lógica de estado
+        if (data.type === 'connection') {
+            if (data.component === 'client' && data.message.includes('Conectado ao servidor')) {
+                this.states.sockets.client.connected = true;
+            } else if (data.component === 'server' && data.message.includes('Cliente conectado')) {
+                this.states.sockets.server.connections++;
+            } else if (data.message.includes('fechada') || data.message.includes('fechou a conexão')) {
+                if (this.states.sockets.client.connected) {
+                    this.states.sockets.client.connected = false;
+                    this.states.sockets.server.connections = Math.max(0, this.states.sockets.server.connections - 1);
+                }
+            }
+        } else if (data.type === 'system' && data.message.includes('resetado')) {
             this.states.sockets.client.connected = false;
-            this.states.sockets.server.connections = Math.max(0, this.states.sockets.server.connections - 1);
         }
 
         this.updateSocketUI();
-        this.addLogEntry('stdout', data.message, 'socket'); // Categoria 'socket'
+        const logType = data.component || data.type;
+        this.addLogEntry(logType, data.message, 'socket', data.pid || data.client_id, data.data);
     }
 
-    updateMemoryState(data) {
-        if (data.type === 'memory') {
-            this.states.memory.counter = data.counter || 0;
-            this.states.memory.lastWriter = data.last_writer || null;
-        } else if (data.type === 'semaphore') {
-            this.states.memory.semaphore = data.available ? 'unlocked' : 'locked';
+    updateMemoryState(data, category) {
+        if (category !== 'shared_memory') return;
+
+        // Handle full state dump from displayMemoryState()
+        if (data.type === 'memory_state') {
+            if (data.memory) {
+                this.states.memory.counter = data.memory.counter || 0;
+                this.states.memory.lastWriter = data.memory.last_writer || 'N/A';
+            }
+            if (data.semaphore) {
+                this.states.memory.semaphore = data.semaphore.available ? 'Liberado' : 'Bloqueado';
+            }
         }
 
-        this.updateMemoryUI();
-        
+        // Log all relevant events that have a message
         if (data.message) {
-            const logType = data.message.includes('escrita') ? 'writer' : 'reader';
-            this.addLogEntry(logType, data.message, 'memory', data.pid); // Categoria 'memory'
+            const logType = data.process || data.type;
+            this.addLogEntry(logType, data.message, 'memory', data.pid, data.data);
         }
+        
+        this.updateMemoryUI();
     }
 
     processError(data) {
@@ -281,7 +304,8 @@ class IPCManager {
             this.processCount--;
             this.updateGlobalStats();
             const logMessage = `Processo ${processData.program} finalizado (código: ${data.data.replace('Processo finalizado com código ', '')})`;
-            this.addLogEntry('system', logMessage, processData.category.replace(/s$/, ''));
+            const logCategory = processData.category === 'shared_memory' ? 'memory' : processData.category.replace(/s$/, '');
+            this.addLogEntry('system', logMessage, logCategory);
             
             this.updateProcessState(processData.category, processData.program, false);
         }
@@ -310,10 +334,13 @@ class IPCManager {
                 this.updateSocketUI();
                 break;
             case 'shared_memory':
-                if (program === 'writer') {
-                    this.states.memory.writer.running = running;
-                } else if (program === 'reader') {
-                    this.states.memory.reader.running = running;
+                // O novo modelo usa um único gerenciador
+                this.states.memory.manager.running = running;
+                if (!running) {
+                    // Resetar UI ao parar
+                    this.states.memory.semaphore = 'Liberado';
+                    this.states.memory.lastWriter = 'Nenhum';
+                    this.states.memory.counter = 0;
                 }
                 this.updateMemoryUI();
                 break;
@@ -365,103 +392,129 @@ class IPCManager {
 
     async startServer() {
         await this.runProcess('sockets', 'server', []);
-        this.states.sockets.server.running = true;
-        this.updateSocketUI();
     }
 
     async stopServer() {
-        for (const [id, process] of this.activeProcesses) {
-            if (process.category === 'sockets' && process.program === 'server') {
-                await this.stopProcess(id);
-                break;
-            }
-        }
+        const serverProcess = this.findProcessByCategory('sockets', 'server');
+        if (serverProcess) await this.stopProcess(serverProcess.id);
     }
 
     async startClient() {
-        await this.runProcess('sockets', 'client', []);
-        this.states.sockets.client.running = true;
-        this.updateSocketUI();
+        const processInfo = await this.runProcess('sockets', 'client', []);
+        if (!processInfo || !processInfo.processId) {
+            this.addLogEntry('stderr', 'Não foi possível iniciar o processo de cliente.', 'socket');
+            return;
+        }
+
+        // Envia comandos de inicialização
+        const processId = processInfo.processId;
+        this.addLogEntry('system', 'Configurando o cliente socket...', 'socket');
+        await this.sendCommand(processId, 'create_socket');
+        await this.sendCommand(processId, 'connect');
     }
 
     async stopClient() {
-        for (const [id, process] of this.activeProcesses) {
-            if (process.category === 'sockets' && process.program === 'client') {
-                await this.stopProcess(id);
-                break;
-            }
+        const clientProcess = this.findProcessByCategory('sockets', 'client');
+        if (clientProcess) {
+            this.addLogEntry('system', 'Enviando comando para encerrar o cliente...', 'socket');
+            await this.sendCommand(clientProcess.id, 'exit');
         }
     }
 
     async sendSocketMessage() {
         const message = document.getElementById('socketMessage').value.trim();
-        if (!message) return;
+        if (!message) {
+            this.addLogEntry('stderr', 'A mensagem não pode estar vazia.', 'socket');
+            return;
+        }
 
         if (!this.states.sockets.client.connected) {
             this.addLogEntry('stderr', 'Cliente não conectado ao servidor', 'socket');
             return;
         }
 
-        this.addLogEntry('client', `Enviando: ${message}`, 'socket');
-        document.getElementById('socketMessage').value = '';
+        const clientProcess = this.findProcessByCategory('sockets', 'client');
+        if (!clientProcess) {
+            this.addLogEntry('stderr', 'Processo do cliente não encontrado.', 'socket');
+            return;
+        }
 
-        // Simular resposta do servidor
-        setTimeout(() => {
-            this.addLogEntry('server', `ECHO: ${message}`, 'socket');
-        }, 500);
+        await this.sendCommand(clientProcess.id, `send ${message}`);
+        await this.sendCommand(clientProcess.id, 'receive'); // Tenta receber a resposta
+        document.getElementById('socketMessage').value = '';
     }
 
     async startWriter() {
-        const message = document.getElementById('memoryMessage').value.trim();
-        const args = message ? ['writer', message] : ['writer'];
-        
-        await this.runProcess('shared_memory', 'shared_memory', args);
-        this.states.memory.writer.running = true;
-        this.updateMemoryUI();
+        const processInfo = await this.runProcess('shared_memory', 'shared_memory', []);
+        if (!processInfo || !processInfo.processId) {
+            this.addLogEntry('stderr', 'Não foi possível iniciar o gerenciador de memória.', 'memory');
+            return;
+        }
+
+        const processId = processInfo.processId;
+        this.addLogEntry('system', 'Configurando memória compartilhada...', 'memory');
+        await this.sendCommand(processId, 'create');
+        await this.sendCommand(processId, 'attach');
+        this.addLogEntry('system', 'Memória compartilhada pronta para uso.', 'memory');
     }
 
     async startReader() {
-        await this.runProcess('shared_memory', 'shared_memory', ['reader']);
-        this.states.memory.reader.running = true;
-        this.updateMemoryUI();
+        const memoryProcess = this.findProcessByCategory('shared_memory');
+        if (!memoryProcess) {
+            this.addLogEntry('stderr', 'Gerenciador de memória não está em execução. Inicie o processo primeiro.', 'memory');
+            return;
+        }
+        this.addLogEntry('system', 'Enviando comando para ler da memória...', 'memory');
+        await this.sendCommand(memoryProcess.id, 'read');
     }
 
     async stopMemory() {
-        const memoryProcesses = Array.from(this.activeProcesses.entries())
-            .filter(([id, process]) => process.category === 'shared_memory');
-        
-        for (const [id, process] of memoryProcesses) {
-            await this.stopProcess(id);
+        const memoryProcess = this.findProcessByCategory('shared_memory');
+        if (memoryProcess) {
+            this.addLogEntry('system', 'Enviando comando para encerrar o gerenciador...', 'memory');
+            await this.sendCommand(memoryProcess.id, 'exit');
         }
     }
 
     async cleanMemory() {
-        await this.runProcess('shared_memory', 'shared_memory', ['cleaner']);
-        this.addLogEntry('system', 'Limpando recursos de memória', 'memory');
+        const memoryProcess = this.findProcessByCategory('shared_memory');
+        if (memoryProcess) {
+            this.addLogEntry('system', 'Enviando comando para limpar a memória...', 'memory');
+            await this.sendCommand(memoryProcess.id, 'cleanup');
+            this.addLogEntry('system', 'Comando de limpeza enviado ao gerenciador.', 'memory');
+        } else {
+            this.addLogEntry('system', 'Iniciando processo temporário para limpeza...', 'memory');
+            const processInfo = await this.runProcess('shared_memory', 'shared_memory', []);
+            if (processInfo && processInfo.processId) {
+                await this.sendCommand(processInfo.processId, 'cleanup');
+                await this.sendCommand(processInfo.processId, 'exit'); // Auto-exit
+                this.addLogEntry('system', 'Comando de limpeza enviado a processo temporário.', 'memory');
+            }
+        }
     }
 
     async writeMemory() {
         const message = document.getElementById('memoryMessage').value.trim();
-        if (!message) return;
-
-        if (!this.states.memory.writer.running) {
-            this.addLogEntry('stderr', 'Escritor não está em execução', 'memory');
+        if (!message) {
+            this.addLogEntry('stderr', 'A mensagem não pode estar vazia.', 'memory');
             return;
         }
 
-        this.addLogEntry('writer', `Escrevendo na memória: ${message}`, 'memory');
-        document.getElementById('memoryMessage').value = '';
+        const memoryProcess = this.findProcessByCategory('shared_memory');
+        if (!memoryProcess) {
+            this.addLogEntry('stderr', 'Gerenciador de memória não está em execução.', 'memory');
+            return;
+        }
 
-        // Atualizar estado da memória
-        this.states.memory.counter++;
-        this.states.memory.lastWriter = 'User';
-        this.updateMemoryUI();
+        await this.sendCommand(memoryProcess.id, `write ${message}`);
+        document.getElementById('memoryMessage').value = '';
     }
 
     // === API COMMUNICATION ===
     async runProcess(category, program, args = []) {
         this.showLoading(`Iniciando ${program}...`);
         let result;
+        const logCategory = category === 'shared_memory' ? 'memory' : category.replace(/s$/, '');
 
         try {
             const response = await fetch('/api/run', {
@@ -485,15 +538,15 @@ class IPCManager {
                 this.processCount++;
                 this.updateGlobalStats();
                 
-                this.addLogEntry('system', `✅ ${program} iniciado (ID: ${result.processId})`, category.replace('s', ''));
+                this.addLogEntry('system', `✅ ${program} iniciado (ID: ${result.processId})`, logCategory);
                 
             } else {
-                this.addLogEntry('stderr', `❌ Erro: ${result.error || result.message}`, category.replace(/s$/, ''));
+                this.addLogEntry('stderr', `❌ Erro: ${result.error || result.message}`, logCategory);
                 return null; // Retorna nulo em caso de falha
             }
 
         } catch (error) {
-            this.addLogEntry('stderr', `❌ Erro de conexão: ${error.message}`, category.replace('s', ''));
+            this.addLogEntry('stderr', `❌ Erro de conexão: ${error.message}`, logCategory);
             return null;
         } finally {
             this.hideLoading();
@@ -586,8 +639,7 @@ class IPCManager {
 
     updateMemoryUI() {
         // Atualizar informações
-        document.getElementById('semaphoreStatus').textContent = 
-            this.states.memory.semaphore === 'locked' ? 'Bloqueado' : 'Liberado';
+        document.getElementById('semaphoreStatus').textContent = this.states.memory.semaphore;
         
         document.getElementById('lastWriter').textContent = 
             this.states.memory.lastWriter || 'Nenhum';
@@ -598,8 +650,12 @@ class IPCManager {
         this.updateMemoryGrid();
         
         // Botões
-        const anyRunning = this.states.memory.writer.running || this.states.memory.reader.running;
-        document.getElementById('stopMemory').disabled = !anyRunning;
+        const managerRunning = this.states.memory.manager.running;
+        document.getElementById('startWriter').disabled = managerRunning;
+        document.getElementById('startReader').disabled = !managerRunning;
+        document.getElementById('stopMemory').disabled = !managerRunning;
+        document.getElementById('cleanMemory').disabled = false; // Limpeza pode ser feita a qualquer momento
+        document.getElementById('writeMemory').disabled = !managerRunning;
     }
 
     updateMemoryGrid() {
