@@ -3,121 +3,346 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Monitor de Processos C++</title>
+    <title>IPC Dashboard - Monitor de Comunicação entre Processos</title>
     <link rel="stylesheet" href="style.css">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
 </head>
 <body>
     <div class="container">
-        <header>
-            <h1>🚀 Monitor de Processos C++</h1>
-            <p>Execute e monitore processos em tempo real</p>
+        <!-- Header -->
+        <header class="header">
+            <div class="header-content">
+                <h1><i class="fas fa-microchip"></i> IPC Dashboard</h1>
+                <p>Monitor de Comunicação entre Processos em Tempo Real</p>
+            </div>
+            <div class="header-status">
+                <div id="connectionStatus" class="status-indicator">
+                    <i class="fas fa-plug"></i>
+                    <span>Conectando...</span>
+                </div>
+                <div id="serverStatus" class="status-indicator">
+                    <i class="fas fa-server"></i>
+                    <span>Servidor offline</span>
+                </div>
+            </div>
         </header>
 
-        <div class="controls">
-            <h2>▶️ Executar Processos</h2>
-            
-            <!-- SEÇÃO BUILD (que você está vendo) -->
-            <div class="build-section">
-                <h3>🔨 Build</h3>
-                <button onclick="buildAll()" class="btn btn-build">
-                    🛠️ Build All Projects
+        <!-- Painel de Controle Principal -->
+        <div class="control-panel">
+            <div class="tab-navigation">
+                <button class="tab-btn active" data-tab="pipes">
+                    <i class="fas fa-faucet"></i>
+                    Pipes
                 </button>
-                <button onclick="checkBuild()" class="btn btn-check">
-                    🔍 Verificar Build
+                <button class="tab-btn" data-tab="sockets">
+                    <i class="fas fa-network-wired"></i>
+                    Sockets
                 </button>
-                <div id="buildStatus" class="build-status"></div>
+                <button class="tab-btn" data-tab="memory">
+                    <i class="fas fa-memory"></i>
+                    Memória
+                </button>
             </div>
-            <!-- FIM DA SEÇÃO BUILD -->
 
-            <div class="category">
-                <h3>🧪 Pipes</h3>
-                <div class="process-buttons">
-                    <button onclick="runProcess('pipes', 'pipe_monitor', [])" class="btn btn-pipes">
-                        🚀 Executar Pipe Monitor
-                    </button>
+            <!-- Conteúdo das Abas -->
+            <div class="tab-content">
+                <!-- Aba Pipes -->
+                <div id="pipes-tab" class="tab-pane active">
+                    <div class="ipc-header">
+                        <h2><i class="fas fa-faucet"></i> Comunicação por Pipes</h2>
+                        <p>Comunicação unidirecional entre processos pai e filho</p>
+                    </div>
+
+                    <div class="ipc-controls">
+                        <div class="control-group">
+                            <button id="startPipe" class="btn btn-primary">
+                                <i class="fas fa-play"></i> Iniciar Pipe
+                            </button>
+                            <button id="stopPipe" class="btn btn-danger" disabled>
+                                <i class="fas fa-stop"></i> Parar
+                            </button>
+                        </div>
+
+                        <div class="message-input">
+                            <input type="text" id="pipeMessage" placeholder="Digite a mensagem para o pipe..." 
+                                   class="input-text">
+                            <button id="sendPipe" class="btn btn-success">
+                                <i class="fas fa-paper-plane"></i> Enviar
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Visualização do Pipe -->
+                    <div class="visualization">
+                        <h3><i class="fas fa-eye"></i> Visualização do Pipe</h3>
+                        <div class="pipe-visual">
+                            <div class="pipe-container">
+                                <div class="pipe">
+                                    <div class="pipe-content">
+                                        <div class="data-flow" id="pipeDataFlow"></div>
+                                    </div>
+                                </div>
+                                <div class="pipe-ends">
+                                    <div class="pipe-end writer">
+                                        <i class="fas fa-pen"></i>
+                                        <span>Escritor</span>
+                                    </div>
+                                    <div class="pipe-end reader">
+                                        <i class="fas fa-book"></i>
+                                        <span>Leitor</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="pipe-info">
+                                <div class="info-item">
+                                    <span class="label">Estado:</span>
+                                    <span id="pipeStatus" class="value">Inativo</span>
+                                </div>
+                                <div class="info-item">
+                                    <span class="label">Bytes no buffer:</span>
+                                    <span id="pipeBuffer" class="value">0</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Log de Mensagens -->
+                    <div class="message-log">
+                        <h3><i class="fas fa-list"></i> Log de Mensagens</h3>
+                        <div class="log-controls">
+                            <div class="filter-group">
+                                <label class="filter-checkbox">
+                                    <input type="checkbox" id="showPipeSystem" checked> Sistema
+                                </label>
+                                <label class="filter-checkbox">
+                                    <input type="checkbox" id="showPipeOut" checked> Output
+                                </label>
+                                <label class="filter-checkbox">
+                                    <input type="checkbox" id="showPipeErr" checked> Erros
+                                </label>
+                            </div>
+                            <button id="clearPipeLog" class="btn btn-secondary">
+                                <i class="fas fa-trash"></i> Limpar
+                            </button>
+                        </div>
+                        <div id="pipeLog" class="log-container"></div>
+                    </div>
                 </div>
-            </div>
 
-            <div class="category">
-                <h3>🔌 Sockets</h3>
-                <div class="process-buttons">
-                    <button onclick="runProcess('sockets', 'server', [])" class="btn btn-sockets">
-                        🖥️ Executar Servidor
-                    </button>
-                    
-                    <button onclick="runProcess('sockets', 'client', ['Hello from Web!'])" class="btn btn-sockets">
-                        📨 Executar Cliente
-                    </button>
+                <!-- Aba Sockets -->
+                <div id="sockets-tab" class="tab-pane">
+                    <div class="ipc-header">
+                        <h2><i class="fas fa-network-wired"></i> Comunicação por Sockets</h2>
+                        <p>Comunicação cliente-servidor via sockets UNIX</p>
+                    </div>
+
+                    <div class="socket-controls">
+                        <div class="server-controls">
+                            <h4><i class="fas fa-server"></i> Servidor</h4>
+                            <div class="control-group">
+                                <button id="startServer" class="btn btn-primary">
+                                    <i class="fas fa-play"></i> Iniciar Servidor
+                                </button>
+                                <button id="stopServer" class="btn btn-danger" disabled>
+                                    <i class="fas fa-stop"></i> Parar
+                                </button>
+                            </div>
+                            <div class="server-info">
+                                <div class="info-item">
+                                    <span class="label">Estado:</span>
+                                    <span id="serverState" class="value">Offline</span>
+                                </div>
+                                <div class="info-item">
+                                    <span class="label">Conexões:</span>
+                                    <span id="serverConnections" class="value">0</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="client-controls">
+                            <h4><i class="fas fa-desktop"></i> Cliente</h4>
+                            <div class="control-group">
+                                <button id="startClient" class="btn btn-primary">
+                                    <i class="fas fa-play"></i> Iniciar Cliente
+                                </button>
+                                <button id="stopClient" class="btn btn-danger" disabled>
+                                    <i class="fas fa-stop"></i> Parar
+                                </button>
+                            </div>
+                            <div class="message-input">
+                                <input type="text" id="socketMessage" placeholder="Mensagem para o servidor..." 
+                                       class="input-text">
+                                <button id="sendSocket" class="btn btn-success">
+                                    <i class="fas fa-paper-plane"></i> Enviar
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Visualização de Conexões -->
+                    <div class="visualization">
+                        <h3><i class="fas fa-project-diagram"></i> Conexões Ativas</h3>
+                        <div class="connections-grid">
+                            <div class="connection-item server-node">
+                                <div class="node-icon">
+                                    <i class="fas fa-server"></i>
+                                </div>
+                                <div class="node-info">
+                                    <span class="node-title">Servidor</span>
+                                    <span class="node-status" id="serverNodeStatus">Offline</span>
+                                </div>
+                            </div>
+                            <div class="connection-line" id="connectionLine">
+                                <div class="line"></div>
+                                <div class="connection-status">Desconectado</div>
+                            </div>
+                            <div class="connection-item client-node">
+                                <div class="node-icon">
+                                    <i class="fas fa-desktop"></i>
+                                </div>
+                                <div class="node-info">
+                                    <span class="node-title">Cliente</span>
+                                    <span class="node-status" id="clientNodeStatus">Offline</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Log de Mensagens -->
+                    <div class="message-log">
+                        <h3><i class="fas fa-comments"></i> Log de Comunicação</h3>
+                        <div class="log-controls">
+                            <div class="filter-group">
+                                <label class="filter-checkbox">
+                                    <input type="checkbox" id="showSocketSystem" checked> Sistema
+                                </label>
+                                <label class="filter-checkbox">
+                                    <input type="checkbox" id="showSocketClient" checked> Cliente
+                                </label>
+                                <label class="filter-checkbox">
+                                    <input type="checkbox" id="showSocketServer" checked> Servidor
+                                </label>
+                            </div>
+                            <button id="clearSocketLog" class="btn btn-secondary">
+                                <i class="fas fa-trash"></i> Limpar
+                            </button>
+                        </div>
+                        <div id="socketLog" class="log-container"></div>
+                    </div>
                 </div>
-            </div>
 
-            <div class="category">
-                <h3>🧠 Memória Compartilhada</h3>
-                <div class="process-buttons">
-                    <button onclick="runProcess('shared_memory', 'shared_memory', ['writer', 'Shared Mem Message'])" class="btn btn-memory">
-                        ✍️ Executar Writer
-                    </button>
-                    
-                    <button onclick="runProcess('shared_memory', 'shared_memory', ['reader'])" class="btn btn-memory">
-                        👁️ Executar Reader
-                    </button>
-                    
-                    <button onclick="runProcess('shared_memory', 'shared_memory', ['cleaner'])" class="btn btn-clean">
-                        🧹 Limpar Recursos
-                    </button>
-                </div>
-            </div>
+                <!-- Aba Memória Compartilhada -->
+                <div id="memory-tab" class="tab-pane">
+                    <div class="ipc-header">
+                        <h2><i class="fas fa-memory"></i> Memória Compartilhada</h2>
+                        <p>Comunicação via memória compartilhada com semáforos</p>
+                    </div>
 
-            <div class="custom-command">
-                <h3>⚡ Comando Personalizado</h3>
-                <div class="custom-inputs">
-                    <select id="customCategory" class="category-select">
-                        <option value="pipes">Pipes</option>
-                        <option value="sockets">Sockets</option>
-                        <option value="shared_memory">Memória Compartilhada</option>
-                    </select>
-                    
-                    <select id="customProgram" class="program-select">
-                        <option value="pipe_monitor">pipe_monitor</option>
-                        <option value="server">server</option>
-                        <option value="client">client</option>
-                        <option value="shared_memory">shared_memory</option>
-                    </select>
-                    
-                    <input type="text" id="customArgs" placeholder="Argumentos (ex: writer 'mensagem')" class="command-input">
-                    
-                    <button onclick="runCustomCommand()" class="btn btn-custom">
-                        🚀 Executar
-                    </button>
+                    <div class="memory-controls">
+                        <div class="control-group">
+                            <button id="startWriter" class="btn btn-primary">
+                                <i class="fas fa-pen"></i> Iniciar Escritor
+                            </button>
+                            <button id="startReader" class="btn btn-primary">
+                                <i class="fas fa-book"></i> Iniciar Leitor
+                            </button>
+                            <button id="stopMemory" class="btn btn-danger" disabled>
+                                <i class="fas fa-stop"></i> Parar Tudo
+                            </button>
+                            <button id="cleanMemory" class="btn btn-warning">
+                                <i class="fas fa-broom"></i> Limpar Memória
+                            </button>
+                        </div>
+
+                        <div class="message-input">
+                            <input type="text" id="memoryMessage" placeholder="Dados para memória compartilhada..." 
+                                   class="input-text">
+                            <button id="writeMemory" class="btn btn-success">
+                                <i class="fas fa-save"></i> Escrever
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Visualização da Memória -->
+                    <div class="visualization">
+                        <h3><i class="fas fa-database"></i> Estado da Memória</h3>
+                        <div class="memory-visual">
+                            <div class="memory-grid">
+                                <div class="memory-header">
+                                    <span>Endereço</span>
+                                    <span>Valor</span>
+                                    <span>Estado</span>
+                                </div>
+                                <div class="memory-content" id="memoryContent">
+                                    <!-- Conteúdo dinâmico -->
+                                </div>
+                            </div>
+                            <div class="memory-info">
+                                <div class="info-item">
+                                    <span class="label">Semáforo:</span>
+                                    <span id="semaphoreStatus" class="value">Liberado</span>
+                                </div>
+                                <div class="info-item">
+                                    <span class="label">Último escritor:</span>
+                                    <span id="lastWriter" class="value">Nenhum</span>
+                                </div>
+                                <div class="info-item">
+                                    <span class="label">Contador:</span>
+                                    <span id="memoryCounter" class="value">0</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Log de Operações -->
+                    <div class="message-log">
+                        <h3><i class="fas fa-history"></i> Log de Operações</h3>
+                        <div class="log-controls">
+                            <div class="filter-group">
+                                <label class="filter-checkbox">
+                                    <input type="checkbox" id="showMemorySystem" checked> Sistema
+                                </label>
+                                <label class="filter-checkbox">
+                                    <input type="checkbox" id="showMemoryWrite" checked> Escritas
+                                </label>
+                                <label class="filter-checkbox">
+                                    <input type="checkbox" id="showMemoryRead" checked> Leituras
+                                </label>
+                            </div>
+                            <button id="clearMemoryLog" class="btn btn-secondary">
+                                <i class="fas fa-trash"></i> Limpar
+                            </button>
+                        </div>
+                        <div id="memoryLog" class="log-container"></div>
+                    </div>
                 </div>
             </div>
         </div>
 
-        <div class="process-list">
-            <h2>📋 Processos Ativos</h2>
-            <div id="processesContainer" class="processes-container"></div>
-        </div>
-
-        <div class="output-container">
-            <h2>📊 Output em Tempo Real</h2>
-            <div class="output-controls">
-                <div class="filters">
-                    <label>
-                        <input type="checkbox" id="showJson" checked onchange="filterOutput()">
-                        JSON
-                    </label>
-                    <label>
-                        <input type="checkbox" id="showStdout" checked onchange="filterOutput()">
-                        Stdout
-                    </label>
-                    <label>
-                        <input type="checkbox" id="showStderr" checked onchange="filterOutput()">
-                        Stderr
-                    </label>
+        <!-- Painel de Status Global -->
+        <footer class="footer">
+            <div class="status-bar">
+                <div class="status-item">
+                    <i class="fas fa-microchip"></i>
+                    <span>Processos: <span id="globalProcessCount">0</span></span>
                 </div>
-                <button onclick="clearOutput()" class="btn btn-clear">🗑️ Limpar</button>
+                <div class="status-item">
+                    <i class="fas fa-exchange-alt"></i>
+                    <span>Mensagens: <span id="globalMessageCount">0</span></span>
+                </div>
+                <div class="status-item">
+                    <i class="fas fa-clock"></i>
+                    <span id="uptime">00:00:00</span>
+                </div>
             </div>
-            <div id="output" class="output"></div>
+        </footer>
+    </div>
+
+    <!-- Modal de Loading -->
+    <div id="loadingModal" class="modal">
+        <div class="modal-content">
+            <div class="spinner"></div>
+            <p id="loadingMessage">Processando...</p>
         </div>
     </div>
 
